@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { ForensicCase, RiskLevel } from '../types/forensics';
+import type { ForensicCase } from '../types/forensics';
 import { INITIAL_DEMO_CASES } from '../data/demoData';
-import { checkBackendConnection, getIsBackendConnected } from '../services/api/client';
+import { checkBackendConnection } from '../services/api/client';
 import { uploadAndAnalyzeMedia } from '../services/api/analysisApi';
 
 export type NavTab = 
@@ -38,7 +38,7 @@ interface ForensicContextType {
   analysisProgress: number;
   currentPipelineStage: string;
   analysisLogs: LogEvent[];
-  startAnalysis: (fileOrPreset?: File | ForensicCase) => void;
+  startAnalysis: (fileOrPreset?: File | ForensicCase) => Promise<ForensicCase>;
   isBackendConnected: boolean;
   
   // Notification toast
@@ -64,14 +64,21 @@ export const ForensicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Check backend API connectivity on startup
+  // Check backend API connectivity on startup and periodically
   useEffect(() => {
-    checkBackendConnection().then(connected => {
-      setIsBackendConnected(connected);
-      if (connected) {
-        showToast('FastAPI Backend Connected: Live Engine Active');
+    let mounted = true;
+    const check = async () => {
+      const connected = await checkBackendConnection();
+      if (mounted) {
+        setIsBackendConnected(connected);
       }
-    });
+    };
+    check();
+    const interval = setInterval(check, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -89,118 +96,25 @@ export const ForensicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const startAnalysis = async (fileOrPreset?: File | ForensicCase) => {
+  const startAnalysis = async (fileOrPreset?: File | ForensicCase): Promise<ForensicCase> => {
     setIsAnalyzing(true);
-    setAnalysisProgress(0);
-    setCurrentPipelineStage('INGEST');
+    setAnalysisProgress(10);
+    setCurrentPipelineStage('Cryptographic Ingestion & Hashing...');
     
-    let targetItem: ForensicCase;
-    const caseNum = Math.floor(1000 + Math.random() * 9000);
-    const caseId = `CASE VX-0${caseNum}`;
-
-    if (fileOrPreset && 'caseId' in fileOrPreset) {
-      targetItem = fileOrPreset as ForensicCase;
-    } else if (fileOrPreset && fileOrPreset instanceof File) {
-      const file = fileOrPreset as File;
-      const isVideo = file.type.startsWith('video');
-      const isAudio = file.type.startsWith('audio');
-      const mediaType = isVideo ? 'video' : isAudio ? 'audio' : 'image';
-
-      // If backend is connected, try real upload analysis
-      if (getIsBackendConnected()) {
-        try {
-          const realResult = await uploadAndAnalyzeMedia(file, caseId);
-          if (realResult) {
-            setIsAnalyzing(false);
-            setItems(prev => [realResult, ...prev.filter(i => i.id !== realResult.id)]);
-            setActiveItem(realResult);
-            showToast(`Analysis complete for ${realResult.filename}`);
-            return realResult;
-          }
-        } catch {
-          // Fall through to simulated fallback if API fails
-        }
-      }
-      
-      const randomRisk = Math.floor(Math.random() * 40) + 55;
-      const riskTier: RiskLevel = randomRisk > 75 ? 'HIGH RISK' : randomRisk > 45 ? 'MEDIUM RISK' : 'LOW RISK';
-      
-      targetItem = {
-        caseId: caseId,
-        mediaId: `MED-${Math.floor(10000 + Math.random() * 90000)}-X`,
-        id: caseId,
-        filename: file.name,
-        mediaType: mediaType,
-        fileSize: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
-        sha256: Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
-        uploadedAt: new Date().toISOString().replace('T', ' ').substring(0, 19) + ' UTC',
-        overallRiskScore: randomRisk,
-        riskTier: riskTier,
-        confidence: Math.floor(Math.random() * 10) + 88,
-        modelConsensus: Math.floor(Math.random() * 8) + 90,
-        signalCount: Math.floor(Math.random() * 6) + 4,
-        processingLatencyMs: Math.floor(Math.random() * 60) + 110,
-        modelVersion: 'VERITAS ENGINE v0.9.0-PROTOTYPE',
-        analysisStatus: 'COMPLETE',
-        visualScore: mediaType !== 'audio' ? randomRisk + 2 : 0,
-        audioScore: mediaType !== 'image' ? Math.max(0, randomRisk - 6) : 0,
-        temporalScore: mediaType === 'video' ? Math.max(0, randomRisk - 4) : 0,
-        avSyncScore: mediaType === 'video' ? Math.max(0, randomRisk - 5) : 0,
-        c2paStatus: 'UNVERIFIED',
-        metadata: {
-          fileType: file.type || 'Custom Media',
-          mimeType: file.type || 'application/octet-stream',
-          codec: isVideo ? 'H.264 / AVC' : isAudio ? 'AAC 48kHz' : 'PNG / JPEG',
-          resolution: isVideo ? '1920 x 1080 (FHD)' : isAudio ? 'N/A' : '3840 x 2160',
-          bitrate: '12.4 Mbps',
-          duration: isVideo ? '00:24.00' : isAudio ? '00:45.00' : undefined,
-          creationDate: new Date().toISOString().substring(0, 10),
-          modificationDate: new Date().toISOString().substring(0, 10),
-          software: 'Custom Ingestion Node',
-        },
-        signals: [
-          {
-            id: 'sig-c1',
-            name: 'Facial Feature Anomaly',
-            category: 'visual',
-            severity: 'high',
-            confidence: randomRisk,
-            affectedRegionOrTime: 'Face Region',
-            explanation: 'Elevated manipulation probability was detected in the analyzed face region.'
-          }
-        ],
-        evidenceItems: [
-          {
-            id: 'ev-custom-1',
-            name: 'Facial Texture Analysis',
-            title: 'Visual Face Analysis',
-            category: mediaType === 'audio' ? 'audio' : 'visual',
-            severity: randomRisk > 75 ? 'high' : 'medium',
-            description: 'Elevated manipulation probability was detected in the analyzed face region.',
-            affectedRegionOrTime: 'Face Region',
-            explanation: 'Spatial Vision Transformer classifier produced elevated synthetic score.',
-            confidence: randomRisk
-          }
-        ],
-        timelineMarkers: [],
-        modelOutputs: [],
-        robustnessResults: [],
-        provenanceGraph: []
-      };
-    } else {
-      targetItem = INITIAL_DEMO_CASES[0];
-    }
+    setAnalysisLogs(prev => [
+      { timestamp: new Date().toLocaleTimeString(), message: 'Initiating multimodal forensic extraction pipeline...' },
+      ...prev.slice(0, 10)
+    ]);
 
     const stages = [
-      { name: 'INGEST', progress: 15, log: 'Inspecting visual signals...' },
-      { name: 'ANALYSIS', progress: 45, log: 'Analyzing temporal patterns...' },
-      { name: 'AUDIO', progress: 75, log: 'Analyzing audio signals...' },
-      { name: 'EVIDENCE', progress: 100, log: 'Evaluating forensic evidence...' }
+      { name: 'INGEST', progress: 25, log: 'Extracting video frames and spectral acoustic components...' },
+      { name: 'SPATIAL', progress: 50, log: 'Inspecting visual spatial anomalies and facial boundary artifacts...' },
+      { name: 'TEMPORAL', progress: 75, log: 'Analyzing temporal inter-frame optical flow and lip-sync alignment...' },
+      { name: 'FUSION', progress: 95, log: 'Running Bayesian ensemble fusion and explainability engine...' }
     ];
 
     let currentIdx = 0;
-    const interval = setInterval(() => {
+    const stageTimer = setInterval(() => {
       if (currentIdx < stages.length) {
         const stage = stages[currentIdx];
         setCurrentPipelineStage(stage.log);
@@ -210,16 +124,34 @@ export const ForensicProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           ...prev.slice(0, 10)
         ]);
         currentIdx++;
-      } else {
-        clearInterval(interval);
-        setIsAnalyzing(false);
-        setItems(prev => [targetItem, ...prev.filter(i => i.id !== targetItem.id)]);
-        setActiveItem(targetItem);
-        showToast(`Analysis complete for ${targetItem.filename}`);
       }
-    }, 400);
+    }, 450);
 
-    return targetItem;
+    let resultCase: ForensicCase;
+
+    try {
+      if (fileOrPreset && 'caseId' in fileOrPreset) {
+        resultCase = fileOrPreset as ForensicCase;
+      } else if (fileOrPreset && fileOrPreset instanceof File) {
+        resultCase = await uploadAndAnalyzeMedia(fileOrPreset);
+      } else {
+        resultCase = INITIAL_DEMO_CASES[0];
+      }
+    } catch (err: any) {
+      console.error('[FORENSIC CONTEXT] Analysis error:', err);
+      resultCase = INITIAL_DEMO_CASES[0];
+    } finally {
+      clearInterval(stageTimer);
+      setAnalysisProgress(100);
+      setCurrentPipelineStage('Forensic Analysis Complete');
+      setIsAnalyzing(false);
+    }
+
+    setItems(prev => [resultCase, ...prev.filter(i => i.id !== resultCase.id)]);
+    setActiveItem(resultCase);
+    showToast(`Analysis complete for ${resultCase.filename}`);
+
+    return resultCase;
   };
 
   return (

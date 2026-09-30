@@ -1,21 +1,31 @@
-# Core Backend & Database Dependencies
+# ====================================================================
+# VERITAS AI — Backend Runtime Dependencies
+# ====================================================================
+
+# Core Web & Async Framework
 fastapi==0.141.1
 uvicorn[standard]==0.54.0
-sqlalchemy==2.1.1
-psycopg2-binary==2.9.13
-python-dotenv==1.2.3
+python-multipart==0.0.32
+websockets==15.0.1
 pydantic==2.13.5
 pydantic-core==2.46.5
-supabase==2.31.0
-python-multipart==0.0.32
-pillow==12.3.0
-numpy==2.5.3
+python-dotenv==1.2.3
 
-# AI & Multimodal Forensic Inference Dependencies (CPU Target)
+# Database & Storage
+sqlalchemy==2.1.1
+psycopg2-binary==2.9.13
+supabase==2.31.0
+
+# Scientific & Media Processing
+numpy==2.5.3
+scipy==1.18.1
+pillow==12.3.0
+opencv-python==5.0.0.93
+
+# AI & Deep Learning Inference (CPU Target)
 torch==2.14.0
 torchvision==0.29.0
 onnxruntime==1.30.0
-opencv-python==5.0.0.93
 timm==1.0.30
 safetensors==0.8.0
 huggingface-hub==2.0.0

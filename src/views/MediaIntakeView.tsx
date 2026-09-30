@@ -10,26 +10,34 @@ import {
   Sparkles, 
   Play,
   Terminal,
-  FolderKanban
+  FolderKanban,
+  ArrowRight
 } from 'lucide-react';
 import { INITIAL_DEMO_CASES } from '../data/demoData';
+import type { ForensicCase } from '../types/forensics';
 
 export const MediaIntakeView: React.FC = () => {
-  const { startAnalysis, isAnalyzing, analysisProgress, currentPipelineStage, analysisLogs } = useForensic();
-  const [selectedPreset, setSelectedPreset] = useState(INITIAL_DEMO_CASES[0]);
+  const { startAnalysis, isAnalyzing, analysisProgress, currentPipelineStage, analysisLogs, activeItem, navigateTo } = useForensic();
+  const [selectedPreset, setSelectedPreset] = useState<ForensicCase>(activeItem || INITIAL_DEMO_CASES[0]);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      startAnalysis(e.dataTransfer.files[0]);
+      const file = e.dataTransfer.files[0];
+      startAnalysis(file).then(res => {
+        if (res) setSelectedPreset(res);
+      });
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      startAnalysis(e.target.files[0]);
+      const file = e.target.files[0];
+      startAnalysis(file).then(res => {
+        if (res) setSelectedPreset(res);
+      });
     }
   };
 
@@ -48,7 +56,7 @@ export const MediaIntakeView: React.FC = () => {
         onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleDrop}
-        className={`relative glass-panel p-10 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center gap-4 group ${
+        className={`relative glass-panel p-8 sm:p-10 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center gap-4 group ${
           isDragOver 
             ? 'border-cyan-400 bg-cyan-950/30 scale-[1.01] shadow-[0_0_30px_rgba(0,240,255,0.2)]' 
             : 'border-sky-500/30 hover:border-cyan-400/60 bg-slate-950/60'
@@ -61,8 +69,8 @@ export const MediaIntakeView: React.FC = () => {
           className="absolute inset-0 opacity-0 cursor-pointer z-20"
         />
 
-        <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-400/40 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(0,240,255,0.15)]">
-          <UploadCloud className="w-8 h-8" />
+        <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-400/40 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform shadow-[0_0_15px_rgba(0,240,255,0.15)]">
+          <UploadCloud className="w-7 h-7" />
         </div>
 
         <div className="space-y-1 z-10">
@@ -74,17 +82,17 @@ export const MediaIntakeView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-6 pt-2 font-mono text-xs text-slate-400 z-10">
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-2 font-mono text-xs text-slate-400 z-10">
           <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-slate-900 border border-slate-800">
-            <FileImage className="w-4 h-4 text-cyan-400" />
+            <FileImage className="w-3.5 h-3.5 text-cyan-400" />
             <span>IMAGE (PNG, JPG, WEBP, RAW)</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-slate-900 border border-slate-800">
-            <FileVideo className="w-4 h-4 text-cyan-400" />
+            <FileVideo className="w-3.5 h-3.5 text-cyan-400" />
             <span>VIDEO (MP4, MOV, AVI, WEBM)</span>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-1 rounded bg-slate-900 border border-slate-800">
-            <FileAudio className="w-4 h-4 text-violet-400" />
+            <FileAudio className="w-3.5 h-3.5 text-violet-400" />
             <span>AUDIO (WAV, MP3, AAC, FLAC)</span>
           </div>
         </div>
@@ -163,16 +171,28 @@ export const MediaIntakeView: React.FC = () => {
             <div className="md:col-span-4 flex flex-col items-center justify-center p-4 border-t md:border-t-0 md:border-l border-slate-800 gap-4">
               <button
                 disabled={isAnalyzing}
-                onClick={() => startAnalysis(selectedPreset)}
-                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-400 hover:from-cyan-400 hover:to-sky-300 text-slate-950 font-mono text-xs font-bold transition-all shadow-[0_0_20px_rgba(0,240,255,0.3)] flex items-center justify-center gap-2 hover:scale-105 disabled:opacity-50"
+                onClick={() => {
+                  startAnalysis(selectedPreset).then(() => {
+                    navigateTo('evidence', selectedPreset);
+                  });
+                }}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-cyan-500 to-sky-400 hover:from-cyan-400 hover:to-sky-300 text-slate-950 font-mono text-xs font-bold transition-all shadow-[0_0_20px_rgba(0,240,255,0.3)] flex items-center justify-center gap-2 hover:scale-105 disabled:opacity-50 cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>START FORENSIC ANALYSIS</span>
               </button>
 
+              <button
+                onClick={() => navigateTo('multimodal', selectedPreset)}
+                className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 font-mono text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>OPEN IN MULTIMODAL LAB</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+
               <div className="flex items-center gap-2 text-[10px] font-mono text-slate-400 text-center">
                 <Lock className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                <span>Temporary analysis media is processed securely and can be deleted after analysis.</span>
+                <span>Media is processed securely in local forensic sandbox.</span>
               </div>
             </div>
           </div>

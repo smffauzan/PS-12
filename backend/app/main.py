@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import os
 
 from app.core.config import settings
 from app.db.database import init_db, check_database_health, check_storage_health
@@ -24,10 +25,30 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+# CORS configuration: allow localhost origins + FRONTEND_ORIGIN from env
+allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+]
+
+if settings.FRONTEND_ORIGIN:
+    for origin in settings.FRONTEND_ORIGIN.split(","):
+        origin_clean = origin.strip().rstrip("/")
+        if origin_clean and origin_clean not in allowed_origins:
+            allowed_origins.append(origin_clean)
+
+# Also allow wildcard origin in development or when no explicit FRONTEND_ORIGIN is specified
+if settings.ENVIRONMENT == "development" or not settings.FRONTEND_ORIGIN:
+    if "*" not in allowed_origins:
+        allowed_origins.append("*")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -90,3 +111,9 @@ async def analysis_websocket(websocket: WebSocket, analysis_id: str):
             await asyncio.sleep(0.4)
     except WebSocketDisconnect:
         pass
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", str(settings.PORT)))
+    host = os.getenv("HOST", "0.0.0.0")
+    uvicorn.run("app.main:app", host=host, port=port, reload=(settings.ENVIRONMENT == "development"))

@@ -1,6 +1,7 @@
-const API_BASE_URL = typeof window !== 'undefined' && window.location.port === '5173'
-  ? '' // Use Vite proxy in development
-  : 'http://127.0.0.1:8000';
+const API_BASE_URL =
+  typeof window !== 'undefined' && window.location.port === '5173'
+    ? ''
+    : (import.meta.env.VITE_API_BASE_URL || '');
 
 export interface BackendHealthStatus {
   isConnected: boolean;
